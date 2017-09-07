@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import tf
 import rospy
 import traceback
 from nav_msgs.msg import Path
@@ -48,10 +49,31 @@ def p_v_callback(pvmsg):
     global path_pub, robot_pose
     if robot_pose != None:
         path_msg = Path()
-        path_msg.header.frame_id = 'base_link'
+        #path_msg.header.frame_id = '/base_link'
+        path_msg.header.frame_id = '/odom'
+        path_msg.header.stamp = rospy.Time.now()
+        '''pvmsg.latest_poses[-1].header.frame_id = '/base_link'
+        robot_quat = [robot_pose.pose.orientation.x, robot_pose.pose.orientation.y, robot_pose.pose.orientation.z, robot_pose.pose.orientation.w]
+        latest_pose = pvmsg.latest_poses[-1]
+        latest_pose_quat = [latest_pose.pose.orientation.x, latest_pose.pose.orientation.y, latest_pose.pose.orientation.z, latest_pose.pose.orientation.w]
+        robot_euler = tf.transformations.euler_from_quaternion(robot_quat)
+        latest_pose_euler = tf.transformations.euler_from_quaternion(latest_pose_quat)
+        latest_pose_euler = list(latest_pose_euler)
+        latest_pose_euler[0] -= robot_euler[0]
+        latest_pose_euler[1] -= robot_euler[1]
+        latest_pose_euler[2] -= robot_euler[2]
+        pvmsg.latest_poses[-1].pose.position.x += robot_pose.pose.position.x
+        pvmsg.latest_poses[-1].pose.position.y += robot_pose.pose.position.y
+        pvmsg.latest_poses[-1].pose.position.z += robot_pose.pose.position.z
+        latest_pose_quat = tf.transformations.quaternion_from_euler(latest_pose_euler[0], latest_pose_euler[1], latest_pose_euler[2])
+        pvmsg.latest_poses[-1].pose.orientation.x = latest_pose_quat[0]
+        pvmsg.latest_poses[-1].pose.orientation.y = latest_pose_quat[1]
+        pvmsg.latest_poses[-1].pose.orientation.z = latest_pose_quat[2]
+        pvmsg.latest_poses[-1].pose.orientation.w = latest_pose_quat[3]
+        '''
         path_msg.poses.append(pvmsg.latest_poses[-1])
         path_msg.poses.append(robot_pose)
         path_pub.publish(path_msg)
 
 if __name__ == '__main__':
-    init() 
+    init()
