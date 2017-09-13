@@ -11,13 +11,14 @@ from tf_pose_estimator.msg import PosesAndVelocities
 
 tf_ = None
 path_pub = None
+max_velocity = 1 # m/s
 robot_pose = None
 
 def init():
-    global path_pub, tf_
+    global path_pub, tf_, max_velocity
     rospy.init_node('aerial_global_planner')
     # TODO add drone specific parameters here
-    #max_velocity_x = rospy.get_param("~max_velocity_x", 1)
+    max_velocity = rospy.get_param("~max_velocity", 5)
     rospy.Subscriber("tf_pose_estimator/poses_velocities", PosesAndVelocities, p_v_callback)
     tf_ = TransformListener()
     rospy.Subscriber("tf", TFMessage, tf_callback)
@@ -46,7 +47,7 @@ def tf_callback(tf2):
         print traceback.format_exc()
 
 def p_v_callback(pvmsg):
-    global path_pub, robot_pose
+    global path_pub, robot_pose, max_velocity
     if robot_pose != None:
         path_msg = Path()
         #path_msg.header.frame_id = '/base_link'
@@ -71,9 +72,37 @@ def p_v_callback(pvmsg):
         pvmsg.latest_poses[-1].pose.orientation.z = latest_pose_quat[2]
         pvmsg.latest_poses[-1].pose.orientation.w = latest_pose_quat[3]
         '''
+
+        # UBER TEST CODE STARTS HERE
+        latest_pose = pvmsg.latest_poses[-1]
+        lastx = latest_pose.pose.position.x
+        lasty = latest_pose.pose.position.y
+        latest_vel = pvmsg.latest_velocities[-1]
+        lastvx = latest_vel.vx
+        lastvy = latest_vel.vy
+
+        goalx , goaly = rendezvous(lastx, lasty, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, max_velocity)
+
+        # AND ENDS HERE!
+
         path_msg.poses.append(pvmsg.latest_poses[-1])
         path_msg.poses.append(robot_pose)
         path_pub.publish(path_msg)
+
+# UNTESTED FUNCTION
+def rendezvous(helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
+    goalx = 0
+    goaly = 0
+    for t in f_range(0.1,20,0.1):
+        # TODO
+    # Implement minimum distance point of rendezvous here
+    return goalx, goaly
+
+# UNTESTED FUNCTION
+def f_range(x, y, jump):
+  while x < y:
+    yield x
+    x += jump
 
 if __name__ == '__main__':
     init()
