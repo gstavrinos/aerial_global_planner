@@ -81,7 +81,9 @@ def p_v_callback(pvmsg):
         lastvx = latest_vel.vx
         lastvy = latest_vel.vy
 
-        goalx , goaly = rendezvous(lastx, lasty, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, max_velocity)
+        t_ = (rospy.Time.now().to_sec() - latest_pose.header.stamp.to_sec())
+
+        goalx , goaly = rendezvous(t_, lastx, lasty, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, max_velocity)
 
         # AND ENDS HERE!
 
@@ -90,19 +92,29 @@ def p_v_callback(pvmsg):
         path_pub.publish(path_msg)
 
 # UNTESTED FUNCTION
-def rendezvous(helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
-    goalx = 0
-    goaly = 0
-    for t in f_range(0.1,20,0.1):
+def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
+    goalx = None
+    goaly = None
+    for t in float_range(t_, 20, 0.1):
+        # Helipad position after time = t
+        hx = helix + (helivx * t)
+        hy = heliy + (helivy * t)
+        # Robot needed velocity to reach helipad's position
+        neededvx = (robotx - hx) / t
+        neededvy = (roboty - hy) / t
+        if neededvx < max_velocity / 4 and neededvy < max_velocity / 4:
+            goalx = hx
+            goaly = hy
+            break
         # TODO
     # Implement minimum distance point of rendezvous here
     return goalx, goaly
 
 # UNTESTED FUNCTION
-def f_range(x, y, jump):
-  while x < y:
-    yield x
-    x += jump
+def float_range(x, y, jump):
+    while x < y:
+        yield x
+        x += jump
 
 if __name__ == '__main__':
     init()
