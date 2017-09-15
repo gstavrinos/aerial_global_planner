@@ -19,7 +19,7 @@ def init():
     rospy.init_node('aerial_global_planner')
     # TODO add drone specific parameters here
     max_velocity = rospy.get_param("~max_velocity", 5)
-    rospy.Subscriber("tf_pose_estimator/poses_velocities", PosesAndVelocities, p_v_callback)
+    rospy.Subscriber("tf_velocity_estimator/poses_velocities", PosesAndVelocities, p_v_callback)
     tf_ = TransformListener()
     rospy.Subscriber("tf", TFMessage, tf_callback)
     path_pub = rospy.Publisher("aerial_global_planner/plan", Path, queue_size=1)
@@ -80,16 +80,19 @@ def p_v_callback(pvmsg):
         latest_vel = pvmsg.latest_velocities[-1]
         lastvx = latest_vel.vx
         lastvy = latest_vel.vy
-
         t_ = (rospy.Time.now().to_sec() - latest_pose.header.stamp.to_sec())
 
         goalx , goaly = rendezvous(t_, lastx, lasty, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, max_velocity)
 
         # AND ENDS HERE!
 
-        path_msg.poses.append(pvmsg.latest_poses[-1])
-        path_msg.poses.append(robot_pose)
-        path_pub.publish(path_msg)
+        #path_msg.poses.append(pvmsg.latest_poses[-1])
+        if goalx != None:
+            latest_pose.pose.position.x = goalx
+            latest_pose.pose.position.y = goaly
+            path_msg.poses.append(latest_pose)
+            path_msg.poses.append(robot_pose)
+            path_pub.publish(path_msg)
 
 # UNTESTED FUNCTION
 def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
