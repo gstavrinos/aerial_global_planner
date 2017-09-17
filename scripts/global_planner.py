@@ -113,6 +113,11 @@ def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
     # Implement minimum distance point of rendezvous here
     return goalx, goaly
 
+def lookAt(curr, goal):
+    # TODO
+    quat = None
+    return quat
+
 # UNTESTED FUNCTION
 def float_range(x, y, jump):
     while x < y:
