@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import tf
+import math
 import rospy
 import traceback
 from nav_msgs.msg import Path
@@ -13,14 +14,16 @@ tf_ = None
 path_pub = None
 max_velocity = 1 # m/s
 robot_pose = None
+tf_broadcaster = None
 
 def init():
-    global path_pub, tf_, max_velocity
+    global path_pub, tf_, max_velocity, tf_broadcaster
     rospy.init_node('aerial_global_planner')
     # TODO add drone specific parameters here
     max_velocity = rospy.get_param("~max_velocity", 5)
     rospy.Subscriber("tf_velocity_estimator/poses_velocities", PosesAndVelocities, p_v_callback)
     tf_ = TransformListener()
+    tf_broadcaster = tf.TransformBroadcaster()
     rospy.Subscriber("tf", TFMessage, tf_callback)
     path_pub = rospy.Publisher("aerial_global_planner/plan", Path, queue_size=1)
     while not rospy.is_shutdown():
@@ -47,7 +50,7 @@ def tf_callback(tf2):
         print traceback.format_exc()
 
 def p_v_callback(pvmsg):
-    global path_pub, robot_pose, max_velocity
+    global path_pub, robot_pose, max_velocity, tf_broadcaster
     if robot_pose != None:
         path_msg = Path()
         #path_msg.header.frame_id = '/base_link'
@@ -82,7 +85,7 @@ def p_v_callback(pvmsg):
         lastvy = latest_vel.vy
         t_ = (rospy.Time.now().to_sec() - latest_pose.header.stamp.to_sec())
 
-        goalx , goaly = rendezvous(t_, lastx, lasty, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, max_velocity)
+        goalx , goaly, yaw = rendezvous(t_, lastx, lasty, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, max_velocity)
 
         # AND ENDS HERE!
 
@@ -93,6 +96,14 @@ def p_v_callback(pvmsg):
             path_msg.poses.append(latest_pose)
             path_msg.poses.append(robot_pose)
             path_pub.publish(path_msg)
+
+            goal_quat = tf.transformations.quaternion_from_euler(0, 0, yaw)
+            tf_broadcaster.sendTransform(
+                (goalx, goaly, 0),
+                goal_quat,
+                rospy.Time.now(),
+                'goal',
+                'odom')
 
 # UNTESTED FUNCTION
 def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
@@ -111,14 +122,18 @@ def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
             break
         # TODO
     # Implement minimum distance point of rendezvous here
-    return goalx, goaly
+    yaw = 0
+    if goalx!= None:
+        dx = robotx - goalx
+        dy = roboty - goaly
+        yaw = math.atan2(dx,dy)
+    return goalx, goaly, yaw
 
 def lookAt(curr, goal):
     # TODO
     quat = None
     return quat
 
-# UNTESTED FUNCTION
 def float_range(x, y, jump):
     while x < y:
         yield x
