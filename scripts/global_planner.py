@@ -102,17 +102,26 @@ def p_v_callback(pvmsg):
                 (goalx, goaly, 0),
                 goal_quat,
                 rospy.Time.now(),
-                'goal',
+                'robot_goal',
                 'odom')
 
 # UNTESTED FUNCTION
 def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
+    tf_broadcaster
     goalx = None
     goaly = None
+    #TODO z is missing
     for t in float_range(t_, 20, 0.1):
         # Helipad position after time = t
         hx = helix + (helivx * t)
         hy = heliy + (helivy * t)
+        if t == t_:
+            tf_broadcaster.sendTransform(
+                (hx, hy, 0),
+                (0, 0, 0, 1),
+                rospy.Time.now(),
+                'goal_prediction',
+                'odom')
         # Robot needed velocity to reach helipad's position
         neededvx = (robotx - hx) / t
         neededvy = (roboty - hy) / t
@@ -122,11 +131,11 @@ def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
             break
         # TODO
     # Implement minimum distance point of rendezvous here
-    yaw = 0
+    yaw = 0.0
     if goalx!= None:
-        dx = robotx - goalx
-        dy = roboty - goaly
-        yaw = math.atan2(dx,dy)
+        dx = helix - goalx
+        dy = heliy - goaly
+        yaw = math.atan2(dy,dx)
     return goalx, goaly, yaw
 
 def lookAt(curr, goal):
