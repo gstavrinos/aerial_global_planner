@@ -46,35 +46,17 @@ def tf_callback(tf2):
         ps.pose.orientation.z = quaternion[2]
         ps.pose.orientation.w = quaternion[3]
         robot_pose = ps
+        # TODO subscribe to odom instead of tf! wtf!!
     except Exception as e:
-        print traceback.format_exc()
+        #print traceback.format_exc()
+        pass
 
 def p_v_callback(pvmsg):
     global path_pub, robot_pose, max_velocity, tf_broadcaster
     if robot_pose != None:
         path_msg = Path()
-        #path_msg.header.frame_id = '/base_link'
         path_msg.header.frame_id = '/odom'
         path_msg.header.stamp = rospy.Time.now()
-        '''pvmsg.latest_poses[-1].header.frame_id = '/base_link'
-        robot_quat = [robot_pose.pose.orientation.x, robot_pose.pose.orientation.y, robot_pose.pose.orientation.z, robot_pose.pose.orientation.w]
-        latest_pose = pvmsg.latest_poses[-1]
-        latest_pose_quat = [latest_pose.pose.orientation.x, latest_pose.pose.orientation.y, latest_pose.pose.orientation.z, latest_pose.pose.orientation.w]
-        robot_euler = tf.transformations.euler_from_quaternion(robot_quat)
-        latest_pose_euler = tf.transformations.euler_from_quaternion(latest_pose_quat)
-        latest_pose_euler = list(latest_pose_euler)
-        latest_pose_euler[0] -= robot_euler[0]
-        latest_pose_euler[1] -= robot_euler[1]
-        latest_pose_euler[2] -= robot_euler[2]
-        pvmsg.latest_poses[-1].pose.position.x += robot_pose.pose.position.x
-        pvmsg.latest_poses[-1].pose.position.y += robot_pose.pose.position.y
-        pvmsg.latest_poses[-1].pose.position.z += robot_pose.pose.position.z
-        latest_pose_quat = tf.transformations.quaternion_from_euler(latest_pose_euler[0], latest_pose_euler[1], latest_pose_euler[2])
-        pvmsg.latest_poses[-1].pose.orientation.x = latest_pose_quat[0]
-        pvmsg.latest_poses[-1].pose.orientation.y = latest_pose_quat[1]
-        pvmsg.latest_poses[-1].pose.orientation.z = latest_pose_quat[2]
-        pvmsg.latest_poses[-1].pose.orientation.w = latest_pose_quat[3]
-        '''
 
         # UBER TEST CODE STARTS HERE
         latest_pose = pvmsg.latest_poses[-1]
@@ -107,7 +89,7 @@ def p_v_callback(pvmsg):
 
 # UNTESTED FUNCTION
 def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
-    tf_broadcaster
+    global tf_broadcaster
     goalx = None
     goaly = None
     #TODO z is missing
@@ -125,23 +107,20 @@ def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
         # Robot needed velocity to reach helipad's position
         neededvx = (robotx - hx) / t
         neededvy = (roboty - hy) / t
-        if neededvx < max_velocity / 4 and neededvy < max_velocity / 4:
+        if neededvx < maxrobotv / 4 and neededvy < maxrobotv / 4:
             goalx = hx
             goaly = hy
             break
         # TODO
-    # Implement minimum distance point of rendezvous here
     yaw = 0.0
     if goalx!= None:
-        dx = helix - goalx
-        dy = heliy - goaly
-        yaw = math.atan2(dy,dx)
+        yaw = lookAt(goalx, goaly, helix, heliy)
     return goalx, goaly, yaw
 
-def lookAt(curr, goal):
-    # TODO
-    quat = None
-    return quat
+def lookAt(goalx, goaly, helix, heliy):
+    dx = helix - goalx
+    dy = heliy - goaly
+    return math.atan2(dy,dx)
 
 def float_range(x, y, jump):
     while x < y:
