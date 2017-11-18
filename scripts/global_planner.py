@@ -7,8 +7,8 @@ from nav_msgs.msg import Path
 from tf import TransformListener
 from tf2_msgs.msg import TFMessage
 from geometry_msgs.msg import PoseStamped
-from tf_pose_estimator.msg import Velocity
-from tf_pose_estimator.msg import PosesAndVelocities
+from tf_velocity_estimator.msg import Velocity
+from tf_velocity_estimator.msg import PosesAndVelocities
 
 tf_ = None
 path_pub = None
