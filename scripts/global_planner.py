@@ -62,12 +62,21 @@ def p_v_callback(pvmsg):
         latest_pose = pvmsg.latest_poses[-1]
         lastx = latest_pose.pose.position.x
         lasty = latest_pose.pose.position.y
+        lastz = latest_pose.pose.position.z
+        sumvx = 0
+        sumvy = 0
+        for v in pvmsg.latest_velocities:
+            sumvx += v.vx
+            sumvy += v.vy
+        lastvx = sumvx / len(pvmsg.latest_velocities)
+        lastvy = sumvy / len(pvmsg.latest_velocities)
         latest_vel = pvmsg.latest_velocities[-1]
-        lastvx = latest_vel.vx
-        lastvy = latest_vel.vy
+        print lastvx
+        #lastvx = latest_vel.vx
+        #lastvy = latest_vel.vy
         t_ = (rospy.Time.now().to_sec() - latest_pose.header.stamp.to_sec())
 
-        goalx , goaly, yaw = rendezvous(t_, lastx, lasty, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, max_velocity)
+        goalx , goaly, goalz, yaw = rendezvous(t_, lastx, lasty, lastz, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, robot_pose.pose.position.z, max_velocity)
 
         # AND ENDS HERE!
 
@@ -75,23 +84,25 @@ def p_v_callback(pvmsg):
         if goalx != None:
             latest_pose.pose.position.x = goalx
             latest_pose.pose.position.y = goaly
+            latest_pose.pose.position.z = goalz
             path_msg.poses.append(latest_pose)
             path_msg.poses.append(robot_pose)
             path_pub.publish(path_msg)
 
             goal_quat = tf.transformations.quaternion_from_euler(0, 0, yaw)
             tf_broadcaster.sendTransform(
-                (goalx, goaly, 0),
+                (goalx, goaly, goalz),
                 goal_quat,
                 rospy.Time.now(),
                 'robot_goal',
                 'odom')
 
 # UNTESTED FUNCTION
-def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
+def rendezvous(t_, helix, heliy, heliz, helivx, helivy, robotx, roboty, robotz, maxrobotv):
     global tf_broadcaster
     goalx = None
     goaly = None
+    goalz = None
     #TODO z is missing
     for t in float_range(t_, 20, 0.1):
         # Helipad position after time = t
@@ -99,7 +110,7 @@ def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
         hy = heliy + (helivy * t)
         if t == t_:
             tf_broadcaster.sendTransform(
-                (hx, hy, 0),
+                (hx, hy, heliz),
                 (0, 0, 0, 1),
                 rospy.Time.now(),
                 'goal_prediction',
@@ -107,15 +118,17 @@ def rendezvous(t_, helix, heliy, helivx, helivy, robotx, roboty, maxrobotv):
         # Robot needed velocity to reach helipad's position
         neededvx = (robotx - hx) / t
         neededvy = (roboty - hy) / t
-        if neededvx < maxrobotv / 4 and neededvy < maxrobotv / 4:
+        neededvz = (robotz - heliz) / t
+        if abs(neededvx) < maxrobotv / 4 and abs(neededvy) < maxrobotv / 4 and abs(neededvz) < maxrobotv / 4:
             goalx = hx
             goaly = hy
+            goalz = heliz
             break
         # TODO
     yaw = 0.0
     if goalx!= None:
         yaw = lookAt(goalx, goaly, helix, heliy)
-    return goalx, goaly, yaw
+    return goalx, goaly, goalz, yaw
 
 def lookAt(goalx, goaly, helix, heliy):
     dx = helix - goalx
