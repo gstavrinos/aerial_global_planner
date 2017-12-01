@@ -20,24 +20,24 @@ def init():
     global path_pub, tf_, max_velocity, tf_broadcaster
     rospy.init_node('aerial_global_planner')
     # TODO add drone specific parameters here
-    max_velocity = rospy.get_param("~max_velocity", 5)
-    rospy.Subscriber("tf_velocity_estimator/poses_velocities", PosesAndVelocities, p_v_callback)
+    max_velocity = rospy.get_param('~max_velocity', 5)
+    rospy.Subscriber('tf_velocity_estimator/poses_velocities', PosesAndVelocities, p_v_callback)
     tf_ = TransformListener()
     tf_broadcaster = tf.TransformBroadcaster()
-    rospy.Subscriber("tf", TFMessage, tf_callback)
-    path_pub = rospy.Publisher("aerial_global_planner/plan", Path, queue_size=1)
+    rospy.Subscriber('tf', TFMessage, tf_callback)
+    path_pub = rospy.Publisher('aerial_global_planner/plan', Path, queue_size=1)
     while not rospy.is_shutdown():
         rospy.spin()
 
 def tf_callback(tf2):
     global robot_pose, tf_
     try:
-        t = tf_.getLatestCommonTime("/odom", '/base_link')
-        position, quaternion = tf_.lookupTransform("/odom", '/base_link', t)
+        t = tf_.getLatestCommonTime('/odom', '/base_link')
+        position, quaternion = tf_.lookupTransform('/odom', '/base_link', t)
         # Untested from here
         ps = PoseStamped()
         ps.header.stamp = rospy.Time.now()
-        ps.header.frame_id = '/base_link'
+        ps.header.frame_id = '/odom'
         ps.pose.position.x = position[0]
         ps.pose.position.y = position[1]
         ps.pose.position.z = position[2]
@@ -70,10 +70,6 @@ def p_v_callback(pvmsg):
             sumvy += v.vy
         lastvx = sumvx / len(pvmsg.latest_velocities)
         lastvy = sumvy / len(pvmsg.latest_velocities)
-        latest_vel = pvmsg.latest_velocities[-1]
-        print lastvx
-        #lastvx = latest_vel.vx
-        #lastvy = latest_vel.vy
         t_ = (rospy.Time.now().to_sec() - latest_pose.header.stamp.to_sec())
 
         goalx , goaly, goalz, yaw = rendezvous(t_, lastx, lasty, lastz, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, robot_pose.pose.position.z, max_velocity)
@@ -96,6 +92,9 @@ def p_v_callback(pvmsg):
                 rospy.Time.now(),
                 'robot_goal',
                 'odom')
+        else: # The robot cannot reach the goal
+            path_pub.publish(path_msg)
+
 
 # UNTESTED FUNCTION
 def rendezvous(t_, helix, heliy, heliz, helivx, helivy, robotx, roboty, robotz, maxrobotv):
@@ -104,6 +103,8 @@ def rendezvous(t_, helix, heliy, heliz, helivx, helivy, robotx, roboty, robotz, 
     goaly = None
     goalz = None
     #TODO z is missing
+    needed_velocities = []
+
     for t in float_range(t_, 20, 0.1):
         # Helipad position after time = t
         hx = helix + (helivx * t)
@@ -119,12 +120,31 @@ def rendezvous(t_, helix, heliy, heliz, helivx, helivy, robotx, roboty, robotz, 
         neededvx = (robotx - hx) / t
         neededvy = (roboty - hy) / t
         neededvz = (robotz - heliz) / t
-        if abs(neededvx) < maxrobotv / 4 and abs(neededvy) < maxrobotv / 4 and abs(neededvz) < maxrobotv / 4:
-            goalx = hx
-            goaly = hy
-            goalz = heliz
-            break
+        if abs(neededvx) < maxrobotv and abs(neededvy) < maxrobotv and abs(neededvz) < maxrobotv:
+            needed_velocities.append([[neededvx, neededvy, neededvz], [hx, hy, heliz]])
+            #goalx = hx
+            #goaly = hy
+            #goalz = heliz
+            #break
         # TODO
+    minv = max_velocity + 1
+    minvxvy = max_velocity + 1
+    for i in needed_velocities:
+        #print i
+        sumv = abs(i[0][0]) + abs(i[0][1]) + abs(i[0][2])
+        if sumv < minv:
+            goalx = i[1][0]
+            goaly = i[1][1]
+            goalz = i[1][2]
+            minv = sumv
+            minvxvy = abs(i[0][0]) + abs(i[0][1])
+        elif sumv == minv and sumvxvy < minvxvy:
+            goalx = i[1][0]
+            goaly = i[1][1]
+            goalz = i[1][2]
+            minv = sumv
+            minvxvy = abs(i[0][0]) + abs(i[0][1])
+
     yaw = 0.0
     if goalx!= None:
         yaw = lookAt(goalx, goaly, helix, heliy)
