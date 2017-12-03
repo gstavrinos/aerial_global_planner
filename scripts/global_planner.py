@@ -2,7 +2,6 @@
 import tf
 import math
 import rospy
-import traceback
 from nav_msgs.msg import Path
 from tf import TransformListener
 from tf2_msgs.msg import TFMessage
@@ -19,7 +18,6 @@ tf_broadcaster = None
 def init():
     global path_pub, tf_, max_velocity, tf_broadcaster
     rospy.init_node('aerial_global_planner')
-    # TODO add drone specific parameters here
     max_velocity = rospy.get_param('~max_velocity', 5)
     rospy.Subscriber('tf_velocity_estimator/poses_velocities', PosesAndVelocities, p_v_callback)
     tf_ = TransformListener()
@@ -34,7 +32,6 @@ def tf_callback(tf2):
     try:
         t = tf_.getLatestCommonTime('/odom', '/base_link')
         position, quaternion = tf_.lookupTransform('/odom', '/base_link', t)
-        # Untested from here
         ps = PoseStamped()
         ps.header.stamp = rospy.Time.now()
         ps.header.frame_id = '/odom'
@@ -48,7 +45,6 @@ def tf_callback(tf2):
         robot_pose = ps
         # TODO subscribe to odom instead of tf! wtf!!
     except Exception as e:
-        #print traceback.format_exc()
         pass
 
 def p_v_callback(pvmsg):
@@ -58,25 +54,53 @@ def p_v_callback(pvmsg):
         path_msg.header.frame_id = '/odom'
         path_msg.header.stamp = rospy.Time.now()
 
-        # UBER TEST CODE STARTS HERE
         latest_pose = pvmsg.latest_poses[-1]
         lastx = latest_pose.pose.position.x
         lasty = latest_pose.pose.position.y
         lastz = latest_pose.pose.position.z
-        sumvx = 0
-        sumvy = 0
+        vx = []
+        vy = []
         for v in pvmsg.latest_velocities:
-            sumvx += v.vx
-            sumvy += v.vy
-        lastvx = sumvx / len(pvmsg.latest_velocities)
-        lastvy = sumvy / len(pvmsg.latest_velocities)
+            vx.append(v.vx)
+            vy.append(v.vy)
+
+        meanvx = sum(vx) / float(len(vx))
+        meanvy = sum(vy) / float(len(vy))
+        lastvx = 0
+        lastvy = 0
+        noise = False
+        stabilized = False
+        while not stabilized:
+            stabilized = True
+            if len(vx) >= 3:
+                if abs(vx[0] - meanvx) >= 0.02:
+                    stabilized = False
+                    noise = True
+                    del vx[0]
+                if abs(vx[-1] - meanvx) >= 0.02:
+                    stabilized = False
+                    noise = True
+                    del vx[-1]
+            if len(vy) >= 3:
+                if abs(vy[0] - meanvy) >= 0.02:
+                    stabilized = False
+                    noise = True
+                    del vy[0]
+                if abs(vy[-1] - meanvy) >= 0.02:
+                    stabilized = False
+                    noise = True
+                    del vy[-1]
+        if noise:
+            lastvx = sum(vx)/float(len(vx))
+            lastvy = sum(vy)/float(len(vy))
+        else:
+            lastvx = meanvx
+            lastvy = meanvy
+
         t_ = (rospy.Time.now().to_sec() - latest_pose.header.stamp.to_sec())
 
         goalx , goaly, goalz, yaw = rendezvous(t_, lastx, lasty, lastz, lastvx, lastvy, robot_pose.pose.position.x, robot_pose.pose.position.y, robot_pose.pose.position.z, max_velocity)
 
-        # AND ENDS HERE!
-
-        #path_msg.poses.append(pvmsg.latest_poses[-1])
         if goalx != None:
             latest_pose.pose.position.x = goalx
             latest_pose.pose.position.y = goaly
@@ -102,7 +126,6 @@ def rendezvous(t_, helix, heliy, heliz, helivx, helivy, robotx, roboty, robotz, 
     goalx = None
     goaly = None
     goalz = None
-    #TODO z is missing
     needed_velocities = []
 
     for t in float_range(t_, 20, 0.1):
@@ -122,15 +145,9 @@ def rendezvous(t_, helix, heliy, heliz, helivx, helivy, robotx, roboty, robotz, 
         neededvz = (robotz - heliz) / t
         if abs(neededvx) < maxrobotv and abs(neededvy) < maxrobotv and abs(neededvz) < maxrobotv:
             needed_velocities.append([[neededvx, neededvy, neededvz], [hx, hy, heliz]])
-            #goalx = hx
-            #goaly = hy
-            #goalz = heliz
-            #break
-        # TODO
     minv = max_velocity + 1
     minvxvy = max_velocity + 1
     for i in needed_velocities:
-        #print i
         sumv = abs(i[0][0]) + abs(i[0][1]) + abs(i[0][2])
         if sumv < minv:
             goalx = i[1][0]
