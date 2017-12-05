@@ -77,25 +77,29 @@ def p_v_callback(pvmsg):
                     stabilized = False
                     noise = True
                     del vx[0]
+                    meanvx = sum(vx) / float(len(vx))
                 if abs(vx[-1] - meanvx) >= 0.02:
                     stabilized = False
                     noise = True
                     del vx[-1]
+                    meanvx = sum(vx) / float(len(vx))
             if len(vy) >= 3:
                 if abs(vy[0] - meanvy) >= 0.02:
                     stabilized = False
                     noise = True
                     del vy[0]
+                    meanvy = sum(vy) / float(len(vy))
                 if abs(vy[-1] - meanvy) >= 0.02:
                     stabilized = False
                     noise = True
                     del vy[-1]
-        if noise:
-            lastvx = sum(vx)/float(len(vx))
-            lastvy = sum(vy)/float(len(vy))
-        else:
-            lastvx = meanvx
-            lastvy = meanvy
+                    meanvy = sum(vy) / float(len(vy))
+        #if noise:
+        #    lastvx = sum(vx)/float(len(vx))
+        #    lastvy = sum(vy)/float(len(vy))
+        #else:
+        lastvx = meanvx
+        lastvy = meanvy
 
         t_ = (rospy.Time.now().to_sec() - latest_pose.header.stamp.to_sec())
 
